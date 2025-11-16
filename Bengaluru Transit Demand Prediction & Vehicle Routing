@@ -1,0 +1,135 @@
+# <span style="color:red; font-family:Times New Roman; font-size:22px;">Bengaluru Transit Demand Prediction & Vehicle Routing</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+This project predicts passenger demand at different zones in Bengaluru and plans optimal vehicle routes to serve those demands. It integrates GTFS data, machine learning, and vehicle routing optimization.
+</span>
+
+
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Project Objective</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+1. Predict hourly passenger demand for Bengaluru bus stops/zones.  
+2. Cluster stops into zones using KMeans clustering.  
+3. Build a Random Forest model to forecast demand.  
+4. Solve the Vehicle Routing Problem (VRP) to serve predicted demand optimally.  
+5. Visualize zones, demands, and optimal vehicle routes interactively.
+</span>
+
+
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Data Used</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- **GTFS Data** from Bengaluru Metropolitan Transport Corporation (BMTC).  
+- **Key fields:**
+  - `stop_id`, `stop_lat`, `stop_lon` → stop coordinates
+  - `hour` → hour of request
+  - `dayofweek` → day of week
+  - `num_passengers` → number of passengers boarding
+- **Input Example:**
+
+| stop_id | stop_lat   | stop_lon   | hour | dayofweek | num_passengers |
+|---------|------------|------------|------|-----------|----------------|
+| S0001   | 12.912362  | 77.682895  | 8    | 1         | 5              |
+| S0002   | 13.085214  | 77.461016  | 9    | 1         | 3              |
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Feature Engineering</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- **Cyclic hour features**: `hour_sin` and `hour_cos` to capture 24-hour patterns.  
+- **Distance to city center**: Calculated using Haversine formula.  
+- **Local density**: Number of neighboring requests within ~0.5 km.  
+- **One-hot encoding**: Day of week transformed into binary columns.  
+
+**Input:** Raw GTFS request dataset  
+**Output:** Feature-enhanced dataset including `hour_sin`, `hour_cos`, `dist_to_center_km`, `local_density`, and `dow_*` columns.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Zone Clustering</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Applied **KMeans clustering** to group stops into zones (e.g., 12 clusters).  
+- Extracted cluster centroids as the representative location for each zone.  
+- Visualized zones on a scatter plot with centroids marked.  
+
+**Input:** Stop coordinates (`stop_lat`, `stop_lon`)  
+**Output:** `zone` assignments for each stop and cluster centroids (`centroid_lat`, `centroid_lon`).
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Zone-Hour Aggregation</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Aggregated hourly demand per zone:
+  - `demand_count`: sum of passengers per zone-hour
+  - `avg_local_density`: mean of local density
+  - `avg_dist_center`: mean distance to center
+- Added cyclical hour features (`hour_sin`, `hour_cos`) for prediction.
+
+**Input:** Feature-enhanced dataset  
+**Output:** `zone_hour` DataFrame summarizing demand and features per zone per hour.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Machine Learning Model</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- **Features:** `zone`, `hour_sin`, `hour_cos`, `avg_local_density`, `avg_dist_center`  
+- **Target:** `demand_count`  
+- **Model:** Random Forest Regressor  
+- **Metrics:** R2 score, MAE  
+- Model saved as `outputs/rf_demand_model.pkl`.  
+
+**Input:** Zone-hour feature dataset  
+**Output:** Predicted hourly demand per zone
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Zone Demand Prediction</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Predicted total demand per zone using trained Random Forest model.  
+- Merged predictions with zone centroids.  
+
+**Input:** `zone_hour` data  
+**Output:** `zone_df` DataFrame containing `centroid_lat`, `centroid_lon`, `zone`, `zone_demand`.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Distance Matrix</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Computed pairwise Haversine distances between zone centroids.  
+- Used for Vehicle Routing Problem (VRP).  
+
+**Input:** `zone_df` with centroid coordinates  
+**Output:** `dist_matrix` (n_zones × n_zones) containing distances in kilometers.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Vehicle Routing Optimization</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Scaled zone demands for feasibility.  
+- Defined number of vehicles and capacity.  
+- Used Google OR-Tools VRP solver:
+  - Objective: Minimize total distance while meeting demands.
+  - Constraints: Vehicle capacities, depot start/end.  
+- **Output:** List of vehicle routes, distance, and served demand per vehicle.  
+
+**Input:** Distance matrix, scaled zone demand, vehicle specs  
+**Output:** `routes` list with vehicle-wise route, distance, and demand.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Visualization</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+- Interactive **Folium map**:  
+  - Yellow circles → zone centroids  
+  - PolyLines → vehicle routes connecting zones in different colors  
+- Hover popup shows zone number and predicted demand.
+
+**Input:** `zone_df`, `routes`  
+**Output:** Interactive map with zones and vehicle paths.
+</span>
+## <span style="color:red; font-family:Times New Roman; font-size:22px;">Outputs Saved</span>
+
+<span style="color:blue; font-family:Times New Roman; font-size:20px;">
+1. `outputs/requests_with_features.csv` → Processed request dataset with engineered features.  
+2. `outputs/zone_centroids_and_demand.csv` → Zone centroids and predicted demand.  
+3. `outputs/rf_demand_model.pkl` → Trained ML model.  
+4. Folium map → Vehicle routes and zone demands (interactive).  
+</span>
+
+
+
+```python
+
+```
